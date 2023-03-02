@@ -25,29 +25,55 @@ public class Player : MonoBehaviour
     /// <summary>
     /// Constant scale at which walk speed is multiplied by
     /// </summary>
-    private const float WALK_SPEED_SCALE = 3.5f;
+    private const float WALK_SPEED_SCALE = 0.05f;
 
     /// <summary>
     /// Constant scale at which sprint speed is multiplied by
     /// </summary>
-    private const float SPRINT_SPEED_SCALE = 6.0f;
+    private const float SPRINT_SPEED_SCALE = 0.1f;
 
     /// <summary>
-    /// Constant scale at which the player movement speed is multipled by
+    /// Constant magnitude at which velocity is clamped at
     /// </summary>
-    private float speedScale = 2.5f;
+    private const float MAX_VELOCITY = 3.0f;
+
+    /// <summary>
+    /// Constant scale at which jump height is multiplied by
+    /// </summary>
+    private const float JUMP_SCALE = 7.5f;
+
+    /// <summary>
+    /// Scale at which the player movement speed is multipled by
+    /// </summary>
+    private float speedScale;
+
+
+    /// <summary>
+    /// Scale at which gravity is applied to the player
+    /// </summary>
+    private float gravityScale = 0.5f;
+
+    /// <summary>
+    /// Tracking if the player is on the ground
+    /// </summary>
+    private bool onGround = true;
 
     /// <summary>
     /// Current player movement state
     /// </summary>
-    PlayerState currentPlayerState = PlayerState.Idle;
+    public PlayerState currentPlayerState = PlayerState.Idle;
 
+    /// <summary>
+    /// Player rigidbody
+    /// </summary>
     private Rigidbody rb;
 
     // Start is called before the first frame update
     void Start()
     {
         rb = GetComponent<Rigidbody>();
+
+        speedScale = WALK_SPEED_SCALE;
     }
 
     // Update is called once per frame
@@ -56,69 +82,110 @@ public class Player : MonoBehaviour
         // Getting delta x and y for mouse movement to control the camera
         float mouseX = Input.GetAxis("Mouse X");
         float mouseY = Input.GetAxis("Mouse Y");
-        float jump = Input.GetAxis("Jump");
+
+        float jumpInput = Input.GetAxis("Jump");
+
+        ClampVelocity();
+        MovementInput();
 
         // Setting the camera to follow the player
         followCamera.transform.position = transform.position;
 
         // Setting up camera rotation for the player
         followCamera.transform.eulerAngles += CAMERA_SPEED_SCALE * new Vector3(-mouseY, mouseX, 0.0f);
-        transform.eulerAngles = followCamera.transform.eulerAngles;
+        transform.eulerAngles = new Vector3(0.0f, followCamera.transform.eulerAngles.y, 0.0f);
 
-        rb.velocity = new Vector3(rb.velocity.x, jump * 5.0f, rb.velocity.z);
-
-        // Forward movement
-        if (Input.GetKey(KeyCode.W))
+        if (!onGround)
         {
-            rb.velocity = speedScale * new Vector3(followCamera.transform.forward.normalized.x, 0.0f, followCamera.transform.forward.normalized.z);
+            Vector3 gravity = GameManager.GLOBAL_GRAVITY * gravityScale * transform.up;
+            rb.AddForce(gravity, ForceMode.Acceleration);
+            currentPlayerState = PlayerState.Jumping;
         }
+        else
+        {
+            rb.velocity = new Vector3(rb.velocity.x, jumpInput * JUMP_SCALE, rb.velocity.z);
+        }
+
+        if (Input.GetMouseButtonDown(0))
+        {
+            Debug.Log("TEST");
+        }
+    }
+
+    /// <summary>
+    /// Helper method to clamp velocity. Called every frame
+    /// </summary>
+    private void ClampVelocity()
+    {
+        // Clamping rigidbody velocity by applying a brake speed
+        float speed = Vector3.Magnitude(rb.velocity);
+
+        if (speed > MAX_VELOCITY)
+        {
+            float brakeSpeed = speed - MAX_VELOCITY;
+
+            Vector3 normalizedVelocity = rb.velocity.normalized;
+            Vector3 brakeVelocity = normalizedVelocity * brakeSpeed;
+
+            rb.AddForce(-brakeVelocity);
+        }
+    }
+
+    /// <summary>
+    /// Helper method to handle player input for movement. Called every frame
+    /// </summary>
+    private void MovementInput()
+    {
+        // Forward movement
+        if (Input.GetKey(KeyCode.W)) 
+        { rb.velocity += speedScale * new Vector3(followCamera.transform.forward.normalized.x, 0.0f, followCamera.transform.forward.normalized.z); }
 
         // Backward movement
-        if (Input.GetKey(KeyCode.S))
-        {
-            rb.velocity = -speedScale * new Vector3(followCamera.transform.forward.normalized.x, 0.0f, followCamera.transform.forward.normalized.z);
-        }
+        if (Input.GetKey(KeyCode.S)) 
+        { rb.velocity += -speedScale * new Vector3(followCamera.transform.forward.normalized.x, 0.0f, followCamera.transform.forward.normalized.z); }
 
         // Right movement
         if (Input.GetKey(KeyCode.D))
-        {
-            rb.velocity = speedScale * new Vector3(followCamera.transform.right.normalized.x, 0.0f, followCamera.transform.right.normalized.z);
-        }
+        { rb.velocity += speedScale * new Vector3(followCamera.transform.right.normalized.x, 0.0f, followCamera.transform.right.normalized.z); }
 
         // Left movement
         if (Input.GetKey(KeyCode.A))
-        {
-            rb.velocity = -speedScale * new Vector3(followCamera.transform.right.normalized.x, 0.0f, followCamera.transform.right.normalized.z);
-        }
+        { rb.velocity += -speedScale * new Vector3(followCamera.transform.right.normalized.x, 0.0f, followCamera.transform.right.normalized.z); }
 
-        // Sprint logic
-        if (Input.GetKey(KeyCode.LeftShift))
+        // Sprint logic including changing player state to and from sprinting
+        if (Input.GetKey(KeyCode.LeftShift) && currentPlayerState != PlayerState.Idle)
         {
+            currentPlayerState = PlayerState.Sprinting;
             speedScale = SPRINT_SPEED_SCALE;
         }
         else
         {
+            currentPlayerState = PlayerState.Walking;
             speedScale = WALK_SPEED_SCALE;
         }
 
-        /*switch(GameManager.currentGameState)
-        {
+        // If no movement, player state is set to idle
+        if (rb.velocity.magnitude <= 0.001f) { currentPlayerState = PlayerState.Idle; }
 
+        // If movement in the x or z direction and the player is not sprinting, player state is set to walking
+        if ((rb.velocity.x > 0.01f || rb.velocity.z > 0.01f)
+            && currentPlayerState != PlayerState.Sprinting)
+        { currentPlayerState = PlayerState.Walking; }
+    }
+
+    private void OnCollisionEnter(Collision collision)
+    {
+        if (collision.gameObject.CompareTag("Ground"))
+        {
+            onGround = true;
         }
+    }
 
-        // Handling what happens during each player state to avoid checking things that don't need to be checked
-        switch (currentPlayerState)
+    private void OnCollisionExit(Collision collision)
+    {
+        if (collision.gameObject.CompareTag("Ground"))
         {
-            case PlayerState.Idle:
-                break;
-            case PlayerState.Walking: 
-                break;
-            case PlayerState.Sprinting:
-                break;
-            case PlayerState.Jumping:
-                break;
-            default:
-                break;
-        }*/
+            onGround = false;
+        }
     }
 }
