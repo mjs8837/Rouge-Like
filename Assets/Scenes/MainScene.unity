@@ -255,6 +255,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   followCamera: {fileID: 963194227}
+  currentPlayerState: 0
 --- !u!65 &377358310
 BoxCollider:
   m_ObjectHideFlags: 0
