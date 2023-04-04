@@ -9,8 +9,15 @@ public class Bullet : MonoBehaviour
     /// </summary>
     private Rigidbody rb;
 
-    private const float MAX_ALIVE_TIME = 5.0f;
+    private float damage = 1.0f;
+
+    private const float MAX_ALIVE_TIME = 2.5f;
     private float aliveTime;
+
+    public float Damage 
+    { 
+        get { return damage; } 
+    }
 
     // Start is called before the first frame update
     void Start()

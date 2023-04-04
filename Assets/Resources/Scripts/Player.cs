@@ -13,11 +13,6 @@ public enum PlayerState
 public class Player : MonoBehaviour
 {
     /// <summary>
-    /// Camera that will follow the player as it moves
-    /// </summary>
-    [SerializeField] Camera followCamera;
-
-    /// <summary>
     /// Constant scale at which camera rotation speed is multipled by
     /// </summary>
     private const float CAMERA_SPEED_SCALE = 2.0f;
@@ -48,6 +43,16 @@ public class Player : MonoBehaviour
     private float gravityScale = 0.5f;
 
     /// <summary>
+    /// Current health the player has
+    /// </summary>
+    private float health;
+
+    /// <summary>
+    /// Max health the player can have
+    /// </summary>
+    private float maxHealth = 10.0f;
+
+    /// <summary>
     /// Tracking if the player is on the ground
     /// </summary>
     private bool onGround = true;
@@ -62,45 +67,58 @@ public class Player : MonoBehaviour
     /// </summary>
     private Rigidbody rb;
 
+    /// <summary>
+    /// Player box collider
+    /// </summary>
+    private BoxCollider bc;
+
+    /// <summary>
+    /// Property to allow other objects to get and modify player health as necessary
+    /// </summary>
+    public float Health
+    {
+        get { return health; }
+        set { health = value; }
+    }
+
     // Start is called before the first frame update
     void Start()
     {
         rb = GetComponent<Rigidbody>();
+        bc = GetComponent<BoxCollider>();
 
         speedScale = WALK_SPEED_SCALE;
+        health = maxHealth;
     }
 
     // Update is called once per frame
     void Update()
     {
-        // Getting delta x and y for mouse movement to control the camera
-        float mouseX = Input.GetAxis("Mouse X");
-        float mouseY = Input.GetAxis("Mouse Y");
-
-        float jumpInput = Input.GetAxis("Jump");
-
-        ClampVelocity();
-        MovementInput();
-
-        // Setting up camera rotation for the player
-        followCamera.transform.eulerAngles += CAMERA_SPEED_SCALE * new Vector3(-mouseY, mouseX, 0.0f);
-        transform.eulerAngles = new Vector3(0.0f, followCamera.transform.eulerAngles.y, 0.0f);
-
-        if (!onGround)
+        if (GameManager.currentGameState != GameState.Inventory)
         {
-            Vector3 gravity = GameManager.GLOBAL_GRAVITY * gravityScale * transform.up;
-            rb.AddForce(gravity, ForceMode.Acceleration);
-            currentPlayerState = PlayerState.Jumping;
-        }
-        else
-        {
-            rb.AddForce(jumpInput * transform.up.normalized, ForceMode.Impulse);
-        }
+            // Getting delta x and y for mouse movement to control the camera
+            float mouseX = Input.GetAxis("Mouse X");
+            float mouseY = Input.GetAxis("Mouse Y");
 
-        // Logic for the player when they press the shoot button
-        if (Input.GetMouseButtonDown(0))
-        {
-            Instantiate(GameManager.BulletPrefab, new Vector3(transform.position.x + transform.right.normalized.x, transform.position.y, transform.position.z), Quaternion.identity);
+            float jumpInput = Input.GetAxis("Jump");
+
+            ClampVelocity();
+            MovementInput();
+
+            // Setting up camera rotation for the player
+            GameManager.FollowCamera.transform.eulerAngles += CAMERA_SPEED_SCALE * new Vector3(-mouseY, mouseX, 0.0f);
+            transform.eulerAngles = new Vector3(0.0f, GameManager.FollowCamera.transform.eulerAngles.y, 0.0f);
+
+            if (!onGround)
+            {
+                Vector3 gravity = GameManager.GLOBAL_GRAVITY * gravityScale * transform.up;
+                rb.AddForce(gravity, ForceMode.Acceleration);
+                currentPlayerState = PlayerState.Jumping;
+            }
+            else
+            {
+                rb.AddForce(jumpInput * transform.up.normalized, ForceMode.Impulse);
+            }
         }
     }
 
